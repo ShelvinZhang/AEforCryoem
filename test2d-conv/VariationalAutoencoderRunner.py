@@ -1,9 +1,7 @@
 import numpy as np
 import tensorflow as tf
-from sklearn.utils import shuffle
 import matplotlib.pyplot as plt
 import scipy.io as io
-import sklearn.preprocessing as prep
 
 from Model import VariationalAutoencoder
 import Utils
@@ -24,37 +22,31 @@ flags.DEFINE_list('plot_step', [1, 2, 5, 10, 20, 50, 100, 200, 500, 1000, 2000, 
 flags.DEFINE_integer('n_plot', 5, 'Number of pictures to plot')
 flags.DEFINE_string('summaries_dir', './summary', 'Summaries directory')
 
-flags.DEFINE_integer('input_size', 112, '')
+flags.DEFINE_integer('image_size', 112, '')
 flags.DEFINE_integer('n_samples', 1000, '')
 flags.DEFINE_integer('n_hidden', 10, '')
+flags.DEFINE_list('conv_strides', [2, 2, 2, 4], '')
+flags.DEFINE_list('conv_features', [16 * x for x in [1, 2, 4, 4]], '')
+flags.DEFINE_list('deconv_strides', [4, 2, 2, 2], '')
+flags.DEFINE_list('deconv_features', [16 * x for x in [4, 4, 2, 1]], '')
 flags.DEFINE_integer('n_encoder1', 200, '')
-flags.DEFINE_integer('n_encoder2', 100, '')
-flags.DEFINE_integer('n_encoder3', 20, '')
-flags.DEFINE_integer('n_decoder1', 20, '')
-flags.DEFINE_integer('n_decoder2', 100, '')
-flags.DEFINE_integer('n_decoder3', 200, '')
-
-flags.DEFINE_string('activation', 'tf.nn.elu', '')
-flags.DEFINE_string('optimizer', 'tf.train.AdamOptimizer', '')
 
 
 def train_vae(*args):
     if tf.gfile.Exists(FLAGS.summaries_dir):
         tf.gfile.DeleteRecursively(FLAGS.summaries_dir)
     tf.gfile.MakeDirs(FLAGS.summaries_dir)
-    x_train = mrcfile.open(FLAGS.data_dir + FLAGS.file_name)
-    # header = x_train.header
-    order = shuffle(np.array(range(FLAGS.n_samples)), random_state=1)
-    '''
-    x_train = Utils.zscore_scale(raw.data.reshape(-1, header.NX * header.NY))
-    x_train = Utils.min_max_scale(x_train)[order]
-    '''
-    # x_train_data = prep.minmax_scale(x_train.data, feature_range=(0, 1), axis=1) [order]
-    # del raw
 
+    # data load and preprocessing
+    x_train = mrcfile.open(FLAGS.data_dir + FLAGS.file_name).data
+    np.random.seed()
+    order = np.array(range(FLAGS.n_samples))
+    np.random.shuffle(order)
+    x_train = Utils.zscore(x_train.reshape([FLAGS.n_samples, -1]), axis=0, truncate=True, scale=True)[order].reshape([-1, FLAGS.image_size, FLAGS.image_size])
     total_batch = int(FLAGS.n_samples / FLAGS.batch_size)
     vae = VariationalAutoencoder(FLAGS)
 
+    # start training
     fig_reconstruction, axs_reconstruction = plt.subplots(2, FLAGS.n_plot)
     for epoch in range(FLAGS.training_epochs):
         avg_cost = 0.
@@ -76,10 +68,10 @@ def train_vae(*args):
                 plot_recon = vae.reconstruct(plot_x)
                 for example_i in range(FLAGS.n_plot):
                     axs_reconstruction[0][example_i].imshow(
-                        np.reshape(plot_x[example_i, :], (FLAGS.input_size, FLAGS.input_size)),
+                        np.reshape(plot_x[example_i, :], (FLAGS.image_size, FLAGS.image_size)),
                         cmap='gray')
                     axs_reconstruction[1][example_i].imshow(
-                        np.reshape(plot_recon[example_i, ...], (FLAGS.input_size, FLAGS.input_size)),
+                        np.reshape(plot_recon[example_i, ...], (FLAGS.image_size, FLAGS.image_size)),
                         cmap='gray')
                     axs_reconstruction[0][example_i].axis('off')
                     axs_reconstruction[1][example_i].axis('off')
